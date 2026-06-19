@@ -4,42 +4,57 @@ from app.services.trip_service import get_trips, get_trip_by_id, get_trip_stats
 trips_bp = Blueprint("trips", __name__)
 
 
+def _extract_filters():
+    return {
+        "start_date": request.args.get("from_date") or request.args.get("start_date"),
+        "end_date": request.args.get("to_date") or request.args.get("end_date"),
+        "pickup_borough": request.args.get("pickup_borough"),
+        "dropoff_borough": request.args.get("dropoff_borough"),
+        "pickup_zone_id": request.args.get("pickup_zone_id"),
+        "dropoff_zone_id": request.args.get("dropoff_zone_id"),
+        "min_distance": request.args.get("min_distance"),
+        "max_distance": request.args.get("max_distance"),
+        "min_fare": request.args.get("min_fare"),
+        "max_fare": request.args.get("max_fare"),
+        "payment_type": request.args.get("payment_type"),
+        "time_of_day": request.args.get("time_of_day"),
+        "is_rush_hour": request.args.get("is_rush_hour"),
+    }
+
+
+def _extract_pagination():
+    return {
+        "page": request.args.get("page", 1),
+        "per_page": request.args.get("per_page", 25),
+    }
+
+
+def _extract_sort():
+    return {
+        "sort_by": request.args.get("sort_by", "pickup_datetime"),
+        "sort_order": request.args.get("sort_order", "desc"),
+    }
+
+
 @trips_bp.route("/trips", methods=["GET"])
 def list_trips():
-    """
-    Paginated trip list with optional filters.
-
-    Query params:
-      page, per_page
-      from_date, to_date          ISO datetime strings
-      pickup_borough, dropoff_borough
-      pickup_zone_id, dropoff_zone_id
-      min_distance, max_distance
-      min_fare, max_fare
-      payment_type                1=Credit 2=Cash 3=No charge 4=Dispute
-      time_of_day                 morning|afternoon|evening|night
-      is_rush_hour                true|false
-      sort_by                     pickup_datetime|total_amount|trip_distance|duration_minutes
-      sort_order                  asc|desc
-    """
-    return jsonify({"success": True, "data": None}), 200
+    filters = _extract_filters()
+    pagination = _extract_pagination()
+    sort = _extract_sort()
+    page_data = get_trips(filters, pagination, sort)
+    return jsonify({"success": True, "data": page_data}), 200
 
 
 @trips_bp.route("/trips/stats", methods=["GET"])
 def trip_stats():
-    """
-    Aggregate statistics over all trips (or filtered subset).
-
-    Accepts same date/location filters as GET /trips.
-
-    Response fields:
-      total_trips, avg_fare, avg_distance, avg_duration_minutes,
-      avg_speed_mph, avg_tip_amount, avg_passenger_count, total_revenue
-    """
-    return jsonify({"success": True, "data": None}), 200
+    filters = _extract_filters()
+    stats = get_trip_stats(filters)
+    return jsonify({"success": True, "data": stats}), 200
 
 
 @trips_bp.route("/trips/<int:trip_id>", methods=["GET"])
 def get_trip(trip_id):
-    """Returns a single trip record by ID."""
-    return jsonify({"success": True, "data": None}), 200
+    trip = get_trip_by_id(trip_id)
+    if not trip:
+        return jsonify({"success": False, "message": "Trip not found."}), 404
+    return jsonify({"success": True, "data": trip}), 200
