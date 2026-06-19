@@ -16,15 +16,3 @@ class Config:
     DEBUG = os.environ.get("FLASK_DEBUG", "1").lower() in {"1", "true", "yes"}
     DATABASE_PATH = str(DATABASE_PATH)
     DATA_CLEANING_LOG_PATH = str(DATA_CLEANING_LOG_PATH)
-
-
-class DevelopmentConfig(Config):
-    pass
-
-
-class ProductionConfig(Config):
-    DEBUG = False
-
-
-class TestingConfig(Config):
-    DEBUG = False
