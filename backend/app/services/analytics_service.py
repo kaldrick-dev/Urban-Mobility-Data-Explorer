@@ -1,81 +1,123 @@
-def get_trips_by_hour(filters: dict):
+from app.db import fetch_one, fetch_all
+
+
+def _build_filter_clause(filters):
+    conditions = []
+    params = []
+
+    if filters.get("start_date"):
+        conditions.append("pickup_datetime >= ?")
+        params.append(filters["start_date"])
+
+    if filters.get("end_date"):
+        conditions.append("pickup_datetime <= ?")
+        params.append(filters["end_date"])
+
+    if filters.get("pickup_borough"):
+        conditions.append("pz.borough = ?")
+        params.append(filters["pickup_borough"])
+
+    return conditions, params
+
+
+def get_overall_summary(filters: dict):
     """
-    Trip count and avg fare grouped by hour of day (0–23).
-
-    Returns: [{"hour": int, "trip_count": int, "avg_fare": float}, ...]
+    Returns total trips, average fare, total revenue, and average tip percentage
+    for an optional filtered trip set.
     """
-    pass
+    conditions, params = _build_filter_clause(filters)
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
-
-def get_trips_by_day(filters: dict):
+    sql = f"""
+        SELECT
+            COUNT(*) AS total_trips,
+            COALESCE(AVG(fare_amount), 0.0) AS avg_fare,
+            COALESCE(SUM(total_amount), 0.0) AS total_revenue,
+            COALESCE(AVG(tip_percentage), 0.0) AS avg_tip_percentage
+        FROM trips t
+        LEFT JOIN taxi_zones pz ON t.pulocation_id = pz.zone_id
+        {where_clause};
     """
-    Trip count grouped by calendar date.
 
-    Returns: [{"date": "YYYY-MM-DD", "trip_count": int}, ...]
+    result = fetch_one(sql, params)
+    return {
+        "total_trips": int(result["total_trips"]),
+        "avg_fare": float(result["avg_fare"]),
+        "total_revenue": float(result["total_revenue"]),
+        "avg_tip_percentage": float(result["avg_tip_percentage"]),
+    }
+
+
+def _merge_sort(items, key, reverse=False):
     """
-    pass
+    Stable merge sort implementation for ranking dictionaries by a numeric key.
 
-
-def get_trips_by_borough(filters: dict):
+    Time Complexity: O(n log n)
+    Space Complexity: O(n)
     """
-    Trip count and total revenue grouped by pickup borough.
+    if len(items) <= 1:
+        return items
 
-    Returns: [{"borough": str, "trip_count": int, "total_revenue": float}, ...]
+    mid = len(items) // 2
+    left = _merge_sort(items[:mid], key, reverse=reverse)
+    right = _merge_sort(items[mid:], key, reverse=reverse)
+
+    merged = []
+    left_index = 0
+    right_index = 0
+
+    while left_index < len(left) and right_index < len(right):
+        left_value = left[left_index].get(key, 0)
+        right_value = right[right_index].get(key, 0)
+
+        if reverse:
+            if left_value >= right_value:
+                merged.append(left[left_index])
+                left_index += 1
+            else:
+                merged.append(right[right_index])
+                right_index += 1
+        else:
+            if left_value <= right_value:
+                merged.append(left[left_index])
+                left_index += 1
+            else:
+                merged.append(right[right_index])
+                right_index += 1
+
+    merged.extend(left[left_index:])
+    merged.extend(right[right_index:])
+    return merged
+
+
+def rank_items(items, key, limit=20, reverse=True):
+    sorted_items = _merge_sort(items, key, reverse=reverse)
+    return sorted_items[:limit]
+
+
+def get_busiest_zones(filters: dict, metric: str = "trip_count", limit: int = 20):
     """
-    pass
-
-
-def get_fare_distribution(filters: dict, bucket_size: float = 5.0):
+    Returns the top zones ranked by trip count or total revenue.
     """
-    Fare amount histogram bucketed into ranges of bucket_size dollars.
+    metric = metric if metric in {"trip_count", "total_revenue"} else "trip_count"
+    conditions, params = _build_filter_clause(filters)
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
-    Returns: [{"bucket": str, "count": int}, ...]  e.g. bucket = "0-5"
+    sql = f"""
+        SELECT
+            pz.zone_id AS zone_id,
+            pz.zone AS zone,
+            pz.borough AS borough,
+            COUNT(*) AS trip_count,
+            COALESCE(SUM(t.total_amount), 0.0) AS total_revenue
+        FROM trips t
+        JOIN taxi_zones pz ON t.pulocation_id = pz.zone_id
+        {where_clause}
+        GROUP BY pz.zone_id, pz.zone, pz.borough;
     """
-    pass
 
-
-def get_top_routes(filters: dict, limit: int = 20):
-    """
-    Most frequent pickup → dropoff zone pairs.
-
-    Returns:
-      [
-        {
-          "pickup_zone": str,
-          "dropoff_zone": str,
-          "pickup_borough": str,
-          "dropoff_borough": str,
-          "trip_count": int,
-          "avg_fare": float
-        },
-        ...
-      ]
-    """
-    pass
-
-
-def get_payment_breakdown(filters: dict):
-    """
-    Trip count and revenue split by payment type.
-
-    Returns: [{"payment_type": str, "trip_count": int, "total_revenue": float}, ...]
-    """
-    pass
-
-
-def get_speed_by_hour(filters: dict):
-    """
-    Average trip speed (mph) grouped by hour of day — reveals congestion patterns.
-
-    Returns: [{"hour": int, "avg_speed_mph": float, "trip_count": int}, ...]
-    """
-    pass
-
-
-def get_distance_distribution(filters: dict, bucket_size: float = 1.0):
-    """
-    Trip distance histogram bucketed into ranges of bucket_size miles.
-
-    Returns: [{"bucket": str, "count": int}, ...]  e.g. bucket = "0-1"
-    """
-    pass
+    rows = fetch_all(sql, params)
+    ranked = rank_items(rows, metric, limit=limit, reverse=True)
+    for idx, row in enumerate(ranked, start=1):
+        row["rank"] = idx
+    return ranked
