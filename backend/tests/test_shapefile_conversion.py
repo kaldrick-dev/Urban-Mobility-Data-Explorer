@@ -29,4 +29,3 @@ def test_shapefile_conversion_returns_dict_if_present():
         obj = json.loads(v)
         assert isinstance(obj, dict)
         assert "type" in obj
-*** End Patch
