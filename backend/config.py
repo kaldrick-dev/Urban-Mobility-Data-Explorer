@@ -1,27 +1,30 @@
 import os
+from pathlib import Path
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+BASE_DIR = Path(__file__).resolve().parent
+
+DATABASE_PATH = BASE_DIR / "mobility.db"
+RAW_DATA_DIR = BASE_DIR / "data"
+YELLOW_TRIPDATA_PATH = RAW_DATA_DIR / "yellow_tripdata.parquet"
+TAXI_ZONE_LOOKUP_PATH = RAW_DATA_DIR / "taxi_zone_lookup.csv"
+TAXI_ZONES_GEOJSON_PATH = RAW_DATA_DIR / "taxi_zones.geojson"
+TAXI_ZONES_SHP_PATH = RAW_DATA_DIR / "taxi_zones" / "taxi_zones.shp"
+DATA_CLEANING_LOG_PATH = BASE_DIR / "data_cleaning_log.txt"
 
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    JSON_SORT_KEYS = False
-    DEBUG = False
+    DEBUG = os.environ.get("FLASK_DEBUG", "1").lower() in {"1", "true", "yes"}
+    DATABASE_PATH = str(DATABASE_PATH)
+    DATA_CLEANING_LOG_PATH = str(DATA_CLEANING_LOG_PATH)
 
 
 class DevelopmentConfig(Config):
-    DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL",
-        f"sqlite:///{os.path.join(BASE_DIR, 'data', 'taxi.db')}"
-    )
+    pass
 
 
 class ProductionConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "")
+    DEBUG = False
 
 
 class TestingConfig(Config):
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    DEBUG = False
