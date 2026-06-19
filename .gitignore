@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+.venv-pipeline/
+venv/
+*.egg-info/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Data files (large — load separately)
+backend/data/*.parquet
+backend/data/*.csv
+backend/data/*.geojson
+backend/data/*.zip
+
+# Logs
+*.log
+pipeline_log.txt
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Frontend build output (if applicable)
+frontend/node_modules/
+frontend/dist/
+frontend/.next/
