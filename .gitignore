@@ -1,0 +1,4 @@
+# Ignore raw data files that are too large to store in the repository
+backend/data/*.parquet
+backend/data/*.csv
+backend/data/taxi_zones/*
