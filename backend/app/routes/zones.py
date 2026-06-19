@@ -1,27 +1,25 @@
 from flask import Blueprint, jsonify, request
-from app.services.zone_service import get_all_zones, get_zone_by_id, get_zones_by_borough
+from app.services.zone_service import get_all_zones, get_zone_by_id, get_distinct_boroughs
 
 zones_bp = Blueprint("zones", __name__)
 
 
 @zones_bp.route("/zones", methods=["GET"])
 def list_zones():
-    """
-    Returns all taxi zones.
-
-    Query params:
-      borough     filter by borough name (Manhattan, Brooklyn, Queens, Bronx, Staten Island, EWR)
-    """
-    return jsonify({"success":True,"data":None}),200
+    borough = request.args.get("borough")
+    zones = get_all_zones(borough)
+    return jsonify({"success": True, "data": zones}), 200
 
 
 @zones_bp.route("/zones/<int:zone_id>", methods=["GET"])
 def get_zone(zone_id):
-    """Returns a single zone by LocationID."""
-    return jsonify({"success":True,"data":None}),200
+    zone = get_zone_by_id(zone_id)
+    if not zone:
+        return jsonify({"success": False, "message": "Zone not found."}), 404
+    return jsonify({"success": True, "data": zone}), 200
 
 
 @zones_bp.route("/zones/boroughs", methods=["GET"])
 def list_boroughs():
-    """Returns a distinct list of borough names."""
-    return jsonify({"success":True,"data":None}),200
+    boroughs = get_distinct_boroughs()
+    return jsonify({"success": True, "data": boroughs}), 200
