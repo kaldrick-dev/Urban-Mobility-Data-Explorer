@@ -9,52 +9,14 @@ def get_db_connection():
 
 
 def initialize_database():
+    from app.models import MODELS
+
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS taxi_zones (
-            zone_id INTEGER PRIMARY KEY,
-            borough TEXT,
-            zone TEXT,
-            service_zone TEXT,
-            geometry TEXT
-        );
-        """
-    )
-
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS trips (
-            trip_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pickup_datetime TEXT NOT NULL,
-            dropoff_datetime TEXT NOT NULL,
-            passenger_count INTEGER,
-            trip_distance REAL,
-            pulocation_id INTEGER,
-            dolocation_id INTEGER,
-            fare_amount REAL,
-            tip_amount REAL,
-            total_amount REAL,
-            average_speed_mph REAL,
-            tip_percentage REAL,
-            rush_hour_flag INTEGER,
-            payment_type INTEGER
-        );
-        """
-    )
-
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trips_pulocation_id ON trips(pulocation_id);"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trips_dolocation_id ON trips(dolocation_id);"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_trips_pickup_datetime ON trips(pickup_datetime);"
-    )
-
+    for model in MODELS:
+        cursor.execute(model.CREATE_TABLE)
+        for index in model.INDEXES:
+            cursor.execute(index)
     conn.commit()
     conn.close()
 
