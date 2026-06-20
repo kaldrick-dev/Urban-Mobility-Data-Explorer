@@ -88,9 +88,35 @@ def load_geojson_zones():
     return geo_map
 
 
-def load_trip_data():
-    df = pd.read_parquet(YELLOW_TRIPDATA_PATH)
-    return df
+def load_trip_data_path():
+    path = Path(YELLOW_TRIPDATA_PATH)
+    if path.exists():
+        return path
+
+    fallback = list(path.parent.glob(path.stem + "*"))
+    if fallback:
+        return fallback[0]
+
+    raise FileNotFoundError(
+        f"Unable to locate trip data file at {path}. "
+        f"Checked fallback candidates: {[str(p) for p in fallback]}"
+    )
+
+
+def iter_trip_data(chunksize=200_000):
+    path = load_trip_data_path()
+    suffix = path.suffix.lower()
+
+    if suffix in {".csv", ""} or path.name.startswith("yellow_tripdata"):
+        return pd.read_csv(path, chunksize=chunksize)
+
+    if suffix in {".parquet", ".pq"}:
+        return [pd.read_parquet(path)]
+
+    raise ValueError(
+        f"Unsupported trip data format for file: {path}. "
+        f"Expected CSV or Parquet."
+    )
 
 
 def build_zone_table():
@@ -114,18 +140,32 @@ def build_zone_table():
 
 def clean_trip_data(raw_df: pd.DataFrame):
     df = raw_df.copy()
-    if "pickup_datetime" not in df.columns or "dropoff_datetime" not in df.columns:
-        raise ValueError("Expected columns pickup_datetime and dropoff_datetime in trip data.")
-
+    
+    # Handle both possible column name formats (parquet vs CSV)
+    pickup_col = None
+    dropoff_col = None
+    
+    for col in df.columns:
+        if col.lower() in ["pickup_datetime", "tpep_pickup_datetime"]:
+            pickup_col = col
+        if col.lower() in ["dropoff_datetime", "tpep_dropoff_datetime"]:
+            dropoff_col = col
+    
+    if pickup_col is None or dropoff_col is None:
+        raise ValueError(f"Expected pickup and dropoff datetime columns in trip data. Found: {list(df.columns)}")
+    
+    # Rename to standardized names
+    df = df.rename(columns={pickup_col: "pickup_datetime", dropoff_col: "dropoff_datetime"})
+    
     df["pickup_datetime"] = pd.to_datetime(df["pickup_datetime"], errors="coerce")
     df["dropoff_datetime"] = pd.to_datetime(df["dropoff_datetime"], errors="coerce")
 
     initial_count = len(df)
     rule_counts = {
-        "invalid_datetime": int(df["pickup_datetime"].isna() | df["dropoff_datetime"].isna()).sum(),
-        "invalid_distance": int((df.get("trip_distance", 0) <= 0).sum()),
-        "invalid_fare": int((df.get("fare_amount", 0) <= 0).sum()),
-        "invalid_total": int((df.get("total_amount", 0) <= 0).sum()),
+        "invalid_datetime": (df["pickup_datetime"].isna() | df["dropoff_datetime"].isna()).sum(),
+        "invalid_distance": (df["trip_distance"] <= 0).sum(),
+        "invalid_fare": (df["fare_amount"] <= 0).sum(),
+        "invalid_total": (df["total_amount"] <= 0).sum(),
     }
 
     df = df.dropna(subset=["pickup_datetime", "dropoff_datetime"])
@@ -153,6 +193,44 @@ def clean_trip_data(raw_df: pd.DataFrame):
     rule_counts["removed_records"] = initial_count - filtered_count
 
     return df, rule_counts
+
+
+def build_trip_rows(cleaned_df: pd.DataFrame):
+    if "PULocationID" not in cleaned_df.columns and "pulocation_id" in cleaned_df.columns:
+        cleaned_df = cleaned_df.rename(columns={"pulocation_id": "PULocationID"})
+    if "DOLocationID" not in cleaned_df.columns and "dolocation_id" in cleaned_df.columns:
+        cleaned_df = cleaned_df.rename(columns={"dolocation_id": "DOLocationID"})
+
+    rows = []
+
+    # Use selected column names directly and avoid nested default evaluation.
+    has_pu = "PULocationID" in cleaned_df.columns
+    has_do = "DOLocationID" in cleaned_df.columns
+    has_pu_lower = "pulocation_id" in cleaned_df.columns
+    has_do_lower = "dolocation_id" in cleaned_df.columns
+
+    for record in cleaned_df.to_dict("records"):
+        pu_location = record.get("PULocationID") if has_pu else record.get("pulocation_id", 0)
+        do_location = record.get("DOLocationID") if has_do else record.get("dolocation_id", 0)
+
+        rows.append(
+            (
+                record["pickup_datetime"].isoformat(sep=" "),
+                record["dropoff_datetime"].isoformat(sep=" "),
+                int(record.get("passenger_count", 0) or 0),
+                float(record.get("trip_distance", 0.0) or 0.0),
+                int(pu_location or 0),
+                int(do_location or 0),
+                float(record.get("fare_amount", 0.0) or 0.0),
+                float(record.get("tip_amount", 0.0) or 0.0),
+                float(record.get("total_amount", 0.0) or 0.0),
+                float(record["average_speed_mph"]),
+                float(record["tip_percentage"]),
+                int(record["rush_hour_flag"]),
+                int(record.get("payment_type", 0) or 0),
+            )
+        )
+    return rows
 
 
 def write_cleaning_log(rule_counts):
@@ -185,32 +263,18 @@ def populate_database():
         zone_rows,
     )
 
-    raw_df = load_trip_data()
-    cleaned_df, rule_counts = clean_trip_data(raw_df)
-    write_cleaning_log(rule_counts)
+    total_cleaned = 0
+    total_initial = 0
+    total_rule_counts = {
+        "invalid_datetime": 0,
+        "invalid_distance": 0,
+        "invalid_fare": 0,
+        "invalid_total": 0,
+        "removed_records": 0,
+        "final_row_count": 0,
+    }
 
-    insert_rows = []
-    for _, row in cleaned_df.iterrows():
-        insert_rows.append(
-            (
-                row["pickup_datetime"].isoformat(sep=" "),
-                row["dropoff_datetime"].isoformat(sep=" "),
-                int(row.get("passenger_count", 0) or 0),
-                float(row.get("trip_distance", 0.0) or 0.0),
-                int(row.get("PULocationID", row.get("pulocation_id", 0)) or 0),
-                int(row.get("DOLocationID", row.get("dolocation_id", 0)) or 0),
-                float(row.get("fare_amount", 0.0) or 0.0),
-                float(row.get("tip_amount", 0.0) or 0.0),
-                float(row.get("total_amount", 0.0) or 0.0),
-                float(row["average_speed_mph"]),
-                float(row["tip_percentage"]),
-                int(row["rush_hour_flag"]),
-                int(row.get("payment_type", 0) or 0),
-            )
-        )
-
-    insert_many(
-        """
+    trip_query = """
         INSERT INTO trips (
             pickup_datetime,
             dropoff_datetime,
@@ -226,11 +290,31 @@ def populate_database():
             rush_hour_flag,
             payment_type
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-        """,
-        insert_rows,
-    )
+        """
 
-    print(f"Loaded {rule_counts['final_row_count']} trips into the database.")
+    for chunk_index, chunk in enumerate(iter_trip_data(), start=1):
+        cleaned_df, rule_counts = clean_trip_data(chunk)
+        batch_rows = build_trip_rows(cleaned_df)
+        insert_many(trip_query, batch_rows)
+
+        total_cleaned += len(cleaned_df)
+        total_initial += len(chunk)
+        total_rule_counts["invalid_datetime"] += rule_counts["invalid_datetime"]
+        total_rule_counts["invalid_distance"] += rule_counts["invalid_distance"]
+        total_rule_counts["invalid_fare"] += rule_counts["invalid_fare"]
+        total_rule_counts["invalid_total"] += rule_counts["invalid_total"]
+        total_rule_counts["removed_records"] += rule_counts["removed_records"]
+        total_rule_counts["final_row_count"] += rule_counts["final_row_count"]
+
+        print(
+            f"Chunk {chunk_index}: read {len(chunk)} rows, "
+            f"cleaned {len(cleaned_df)} rows, "
+            f"inserted {len(batch_rows)} rows."
+        )
+
+    write_cleaning_log(total_rule_counts)
+
+    print(f"Loaded {total_rule_counts['final_row_count']} trips into the database.")
     print(f"Taxi zones loaded: {len(zone_rows)}")
 
 

@@ -2,3 +2,11 @@
 backend/data/*.parquet
 backend/data/*.csv
 backend/data/taxi_zones/*
+backend/data/yellow_tripdata*
+
+# Ignore generated backend artifacts
+backend/data_cleaning_log.txt
+backend/mobility.db
+pipeline_output.log
+backend/__pycache__/
+*.pyc

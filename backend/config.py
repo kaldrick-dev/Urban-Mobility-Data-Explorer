@@ -5,7 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 DATABASE_PATH = BASE_DIR / "mobility.db"
 RAW_DATA_DIR = BASE_DIR / "data"
-YELLOW_TRIPDATA_PATH = RAW_DATA_DIR / "yellow_tripdata.parquet"
+YELLOW_TRIPDATA_PATH = RAW_DATA_DIR / "yellow_tripdata.csv"
 TAXI_ZONE_LOOKUP_PATH = RAW_DATA_DIR / "taxi_zone_lookup.csv"
 TAXI_ZONES_GEOJSON_PATH = RAW_DATA_DIR / "taxi_zones.geojson"
 TAXI_ZONES_SHP_PATH = RAW_DATA_DIR / "taxi_zones" / "taxi_zones.shp"
