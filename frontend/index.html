@@ -1,126 +1,171 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>NYC Taxi Explorer</title>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-        <link rel="stylesheet" href="styles.css" />
-    </head>
-    <body>
-        <header class="appbar">
-            <div class="brand"><span class="mark">N</span><div><b>NYC Taxi Explorer</b></div> </div>
-            <nav class="chips" id="boroughChips" aria-label="Filter by pickup borough"></nav>
-        </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NYC Taxi Explorer</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="appbar">
+      <div class="brand">
+        <span class="mark">N</span>
+        <div><b>NYC Taxi Explorer</b></div>
+      </div>
+      <nav
+        class="chips"
+        id="boroughChips"
+        aria-label="Filter by pickup borough"
+      ></nav>
+    </header>
 
-        <section class="hero">
-            <div id="map" role="img" aria-label="Map of NYC taxi zones shaded by pickup volume"></div>
+    <section class="hero">
+      <div
+        id="map"
+        role="img"
+        aria-label="Map of NYC taxi zones shaded by pickup volume"
+      ></div>
 
-            <div class="overlay panel">
-                <h2 class="panel-title">Overview</h2>
+      <div class="overlay panel">
+        <h2 class="panel-title">Overview</h2>
 
-                <div class="kpis">
-                <div class="kpi"><div class="v" id="kpiTrips">-</div><div class="l">Total trips</div></div>
-                <div class="kpi"><div class="v" id="kpiFare">-</div><div class="l">Average fare</div></div>
-                <div class="kpi"><div class="v" id="kpiSpeed">-</div><div class="l">Average speed</div></div>
-                <div class="kpi"><div class="v" id="kpiRevenue">-</div><div class="l">Total Revenue</div></div>
-                <div class="kpi"><div class="v" id="kpiDistance">-</div><div class="l">Average distance</div></div>
-                <div class="kpi"><div class="v" id="kpiTip">-</div><div class="l">Tip</div></div>
-            </div>
-            </div>
-            <div class="overlay legend">
-                <b>Pickups by zone</b>
-                <div class="ramp"><i style="background:#edf8e9"></i><i style="background:#c7e9c0"></i><i style="background:#74c476"></i><i style="background:#41ab5d"></i><i style="background:#238b45"></i><i style="background:#005a32"></i></div>
-            </div>
-        </section>
-
-        <main class="charts">
-
-            <article class="card span2">
-                <h3>Demand By Hour</h3>
-                <div class="chart-box"><canvas id="chartDemand"></canvas></div>
-            </article>
-
-            <article class="card">
-                <h3>Fare Distribution</h3>
-                <p class="hint">How much trips cost</p>
-                <div class="chart-box"><canvas id="chartFare"></canvas></div>
-            </article>
-
-            <article class="card">
-                <h3>Average speed by hour</h3>
-                <div class="chart-box"><canvas id="chartSpeed"></canvas></div>
-            </article>
-
-            <article class="card">
-                <h3>Payment mix</h3>
-                <p class="hint">Trips by payment type</p>
-                <div class="chart-box"><canvas id="chartPayment"></canvas></div>
-            </article>
-
-            <article class="card span2">
-                <h3>Top Routes</h3>
-                <p class="hint">Most frequent pickup/dropoff zone</p>
-                <div id="routeList" class="route-list"></div>
-            </article>
-
-        </main>
-        <div class="te-pager">
-            <button id="pgPrev" class="te-reset">Prev</button>
-            <span id="pgInfo"></span>
-            <button id="pgNext" class="te-reset">Next</button>
+        <div class="kpis">
+          <div class="kpi">
+            <div class="v" id="kpiTrips">-</div>
+            <div class="l">Total trips</div>
+          </div>
+          <div class="kpi">
+            <div class="v" id="kpiFare">-</div>
+            <div class="l">Average fare</div>
+          </div>
+          <div class="kpi">
+            <div class="v" id="kpiSpeed">-</div>
+            <div class="l">Average speed</div>
+          </div>
+          <div class="kpi">
+            <div class="v" id="kpiRevenue">-</div>
+            <div class="l">Total Revenue</div>
+          </div>
+          <div class="kpi">
+            <div class="v" id="kpiDistance">-</div>
+            <div class="l">Average distance</div>
+          </div>
+          <div class="kpi">
+            <div class="v" id="kpiTip">-</div>
+            <div class="l">Tip</div>
+          </div>
         </div>
-        <section class="trip-explorer">
-            <div class="te-head">
-                <h3>Trip Explorer</h3>
-                <p class="hint">Filter and sort individual trips.</p>
-            </div>
+      </div>
+      <div class="overlay legend">
+        <b>Pickups by zone</b>
+        <div class="ramp">
+          <i style="background: #edf8e9"></i><i style="background: #c7e9c0"></i
+          ><i style="background: #74c476"></i><i style="background: #41ab5d"></i
+          ><i style="background: #238b45"></i
+          ><i style="background: #005a32"></i>
+        </div>
+      </div>
+    </section>
 
-            <div class="te-filters">
-                <label>Min fare ($)
-                    <input id="fMinFare" type="number" min="0" placeholder="0" />
-                </label>
-                <label>Max fare ($)
-                    <input id="fMaxFare" type="number" min="0" placeholder="200" />
-                </label>
-                <label>Time of day
-                    <select id="fTime">
-                        <option value="">All times</option>
-                        <option value="morning">Morning (5-12)</option>
-                        <option value="afternoon">Afternoon (12-17)</option>
-                        <option value="evening">Evening (17-22)</option>
-                        <option value="night">Night (22-5)</option>
-                    </select>
-                </label>
-                <label>Sort by
-                    <select id="fSort">
-                        <option value="pickup_datetime">Date</option>
-                        <option value="total_amount">Fare</option>
-                        <option value="trip_distance">Distance</option>
-                        <option value="speed_mph">Speed</option>
-                    </select>
-                </label>
-                <button id="fApply" class="te-apply">Apply</button>
-                <button id="fReset" class="te-reset">Reset</button>
-            </div>
+    <main class="charts">
+      <article class="card span2">
+        <h3>Demand By Hour</h3>
+        <div class="chart-box"><canvas id="chartDemand"></canvas></div>
+      </article>
 
-            <div class="te-table-wrap">
-                <table class="te-table">
-                    <thead>
-                        <tr>
-                            <th>Pickup time</th><th>From</th><th>To</th>
-                            <th>Distance</th><th>Duration</th><th>Speed</th>
-                            <th>Fare</th><th>Payment</th><th>Rush hour</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tripRows"></tbody>
-                </table>
-            </div>
-        </section>
+      <article class="card">
+        <h3>Fare Distribution</h3>
+        <p class="hint">How much trips cost</p>
+        <div class="chart-box"><canvas id="chartFare"></canvas></div>
+      </article>
 
-        <footer class="foot">NYC Taxi Explorer-2026</footer>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-        <script type="module" src="js/app.js"></script>
-    </body>
+      <article class="card">
+        <h3>Average speed by hour</h3>
+        <div class="chart-box"><canvas id="chartSpeed"></canvas></div>
+      </article>
+
+      <article class="card">
+        <h3>Payment mix</h3>
+        <p class="hint">Trips by payment type</p>
+        <div class="chart-box"><canvas id="chartPayment"></canvas></div>
+      </article>
+
+      <article class="card span2">
+        <h3>Top Routes</h3>
+        <p class="hint">Most frequent pickup/dropoff zone</p>
+        <div id="routeList" class="route-list"></div>
+      </article>
+    </main>
+    <div class="te-pager">
+      <button id="pgPrev" class="te-reset">Prev</button>
+      <span id="pgInfo"></span>
+      <button id="pgNext" class="te-reset">Next</button>
+    </div>
+    <section class="trip-explorer">
+      <div class="te-head">
+        <h3>Trip Explorer</h3>
+        <p class="hint">Filter and sort individual trips.</p>
+      </div>
+
+      <div class="te-filters">
+        <label
+          >Min fare ($)
+          <input id="fMinFare" type="number" min="0" placeholder="0" />
+        </label>
+        <label
+          >Max fare ($)
+          <input id="fMaxFare" type="number" min="0" placeholder="200" />
+        </label>
+        <label
+          >Time of day
+          <select id="fTime">
+            <option value="">All times</option>
+            <option value="morning">Morning (5-12)</option>
+            <option value="afternoon">Afternoon (12-17)</option>
+            <option value="evening">Evening (17-22)</option>
+            <option value="night">Night (22-5)</option>
+          </select>
+        </label>
+        <label
+          >Sort by
+          <select id="fSort">
+            <option value="pickup_datetime">Date</option>
+            <option value="total_amount">Fare</option>
+            <option value="trip_distance">Distance</option>
+            <option value="speed_mph">Speed</option>
+          </select>
+        </label>
+        <button id="fApply" class="te-apply">Apply</button>
+        <button id="fReset" class="te-reset">Reset</button>
+      </div>
+
+      <div class="te-table-wrap">
+        <table class="te-table">
+          <thead>
+            <tr>
+              <th>Pickup time</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Distance</th>
+              <th>Duration</th>
+              <th>Speed</th>
+              <th>Fare</th>
+              <th>Payment</th>
+              <th>Rush hour</th>
+            </tr>
+          </thead>
+          <tbody id="tripRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="foot">NYC Taxi Explorer-2026</footer>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+  </body>
 </html>
