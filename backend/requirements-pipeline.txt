@@ -1,7 +1,0 @@
-# Data pipeline dependencies — requires Python <=3.12 for pre-built wheels
-# Run with a separate venv: python3.12 -m venv .venv-pipeline
-pandas>=2.2.0
-pyarrow>=14.0.0
-numpy>=1.26.0
-geopandas>=0.16.0
-shapely>=2.0.0
