@@ -1,40 +1,19 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.venv/
-.venv-pipeline/
-venv/
-*.egg-info/
-
-# Environment
-.env
-.env.*
-!.env.example
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Data files (large — load separately)
+# Ignore raw data files that are too large to store in the repository
 backend/data/*.parquet
 backend/data/*.csv
-backend/data/*.geojson
-backend/data/*.zip
+backend/data/taxi_zones/*
+backend/data/yellow_tripdata*
 
-# Logs
-*.log
-pipeline_log.txt
+# Ignore generated backend artifacts
+backend/data_cleaning_log.txt
+backend/data_cleaning_rejected.csv
+backend/mobility.db
+pipeline_output.log
+backend/__pycache__/
+backend/app/__pycache__/
 
-# macOS
-.DS_Store
+#Ignore the virtual environment
+backend/.venv
 
-# VS Code
-.vscode/
+*.pyc
 
-# Frontend build output (if applicable)
-frontend/node_modules/
-frontend/dist/
-frontend/.next/
