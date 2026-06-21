@@ -1,53 +1,91 @@
-import { api } from "./api.js"
+import { api } from "./api.js";
 import * as charts from "./charts.js";
-import {initMap, paint} from "./map.js";
+import { initMap, paint } from "./map.js";
 
 const state = { filters: { pickup_borough: null } };
-const fmtInt = (n) => n.toLocaleString("en-US")
-const fmtUsd = (n) => "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
+const fmt = {
+    int:  (n) => Number(n).toLocaleString("en-US"),
+    usd:  (n) => "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 }),
+    fare: (n) => "$" + Number(n).toFixed(2),
+};
+
+// ── Loading bar ─────────────────────────────────────────────
+const bar = document.getElementById("loadingBar");
+function startLoad() { bar.classList.add("active"); }
+function endLoad()   { bar.classList.remove("active"); }
+
+// ── KPI panel ───────────────────────────────────────────────
 function setKpis(s) {
-    const el = (id, v) =>(document.getElementById(id).textContent = v); 
-    el("kpiTrips",  fmtInt(s.total_trips));
-    el("kpiRevenue", fmtUsd(s.total_revenue));
-    el("kpiFare", "$" + s.avg_fare.toFixed(2));
+    const el = (id, v) => (document.getElementById(id).textContent = v);
+    el("kpiTrips",    fmt.int(s.total_trips));
+    el("kpiRevenue",  fmt.usd(s.total_revenue));
+    el("kpiFare",     fmt.fare(s.avg_fare));
     el("kpiDistance", s.avg_distance.toFixed(1) + " mi");
-    el("kpiTip", "$" + s.avg_tip_count.toFixed(2));
-    el("kpiSpeed", s.avg_speed_mph.toFixed(1));
+    el("kpiSpeed",    s.avg_speed_mph.toFixed(1) + " mph");
+    el("kpiTip",      fmt.fare(s.avg_tip_count));
 }
-function setTopRoutes(rows){
+
+// ── Top routes ──────────────────────────────────────────────
+function setTopRoutes(rows) {
     const max = Math.max(...rows.map(r => r.trip_count));
-    document.getElementById("routeList").innerHTML = rows.map(r => `
+    document.getElementById("routeList").innerHTML = rows.map((r, i) => `
         <div class="route">
-        <div class "route-od">
-        <span class="rz">${r.pickup_zone}</span> 
-        <span class="arrow">→</span>
-        <span class="rz">${r.dropoff_zone}</span>
-        </div>
-        <div class="route-bar"><span style="width:${Math.round(r.trip_count / max * 100)}%"></span></div>
-        <div class="route-meta">${fmtInt(r.trip_count)} trips, $${r.avg_fare.toFixed(2)} avg</div>
+            <span class="route-rank">${i + 1}</span>
+            <div class="route-body">
+                <div class="route-od">
+                    <span class="rz">${r.pickup_zone}</span>
+                    <span class="arrow">→</span>
+                    <span class="rz">${r.dropoff_zone}</span>
+                </div>
+                <div class="route-boroughs">
+                    <span class="borough-tag">${r.pickup_borough}</span>
+                    <span class="arrow-sm">→</span>
+                    <span class="borough-tag">${r.dropoff_borough}</span>
+                </div>
+                <div class="route-bar">
+                    <span style="width:${Math.round(r.trip_count / max * 100)}%"></span>
+                </div>
+                <div class="route-meta">
+                    <span>${fmt.int(r.trip_count)} trips</span>
+                    <span>${fmt.fare(r.avg_fare)} avg fare</span>
+                </div>
+            </div>
         </div>
     `).join("");
 }
-async function loadAll(){
+
+// ── Main data load ───────────────────────────────────────────
+async function loadAll() {
+    startLoad();
     const f = state.filters;
-    const [stats, hour, fare, speed, pay, routes] = await Promise.all([
-        api.tripStats(f), api.tripsByHour(f), api.fareDistribution(f), api.speedByHour(f), api.paymentBreakdown(f), api.topRoutes(f),
+    const [stats, hour, fare, speed, routes, distance, day] = await Promise.all([
+        api.tripStats(f),
+        api.tripsByHour(f),
+        api.fareDistribution(f),
+        api.speedByHour(f),
+        api.topRoutes(f),
+        api.distanceDistribution(f),
+        api.tripsByDay(f),
     ]);
     setKpis(stats);
     charts.demandByHour(hour);
     charts.fareDistribution(fare);
     charts.speedByHour(speed);
-    charts.paymentBreakdown(pay);
+    charts.distanceDistribution(distance);
+    charts.tripsByDay(day);
     setTopRoutes(routes);
-    paint(f);
+    await paint(f);
+    endLoad();
 }
+
+// ── Borough filter chips ─────────────────────────────────────
 async function buildFilters() {
     const boroughs = await api.boroughs();
     const wrap = document.getElementById("boroughChips");
     const mk = (label, value) => {
         const b = document.createElement("button");
-        b.className = "chip" + (value === state.filters.pickup_borough ? " on": "");
+        b.className = "chip" + (value === state.filters.pickup_borough ? " on" : "");
         b.textContent = label;
         b.onclick = () => {
             state.filters.pickup_borough = value;
@@ -59,44 +97,46 @@ async function buildFilters() {
     };
     wrap.appendChild(mk("All NYC", null));
     boroughs.forEach(bo => wrap.appendChild(mk(bo, bo)));
-    
 }
+
+// ── Trip explorer ────────────────────────────────────────────
 function timeBucket(dateStr) {
     const h = Number(dateStr.slice(11, 13));
-    if (h >= 5 && h < 12) return "morning";
+    if (h >= 5  && h < 12) return "morning";
     if (h >= 12 && h < 17) return "afternoon";
     if (h >= 17 && h < 22) return "evening";
     return "night";
 }
-let allTrips =[];
+
+let allTrips    = [];
 let currentRows = [];
-let pageIndex = 0;
-const PAGE_SIZE = 5;
+let pageIndex   = 0;
+const PAGE_SIZE = 10;
 
 function renderTrips() {
-    const body = document.getElementById("tripRows");
+    const body  = document.getElementById("tripRows");
     const start = pageIndex * PAGE_SIZE;
-    const pageRows = currentRows.slice(start, start + PAGE_SIZE);
+    const slice = currentRows.slice(start, start + PAGE_SIZE);
 
-    if (!pageRows.length) {
-        body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">No trips match these filters.</td></tr>`;
-    } else {
-        body.innerHTML = pageRows.map(t =>
-            `<tr>
-            <td>${t.pickup_datetime}</td>
-            <td>${t.pickup_zone}</td>
-            <td>${t.dropoff_zone}</td>
-            <td>${t.trip_distance} mi</td>
-            <td>${t.duration_minutes} min</td>
-            <td>${t.speed_mph} mph</td>
-            <td>$${t.total_amount.toFixed(2)}</td>
-            <td>${t.payment_type}</td>
-            <td class="${t.is_rush_hour ? "te-rush-yes" : "te-rush-no"}">${t.is_rush_hour ? "Yes" : "No"}</td>
-            </tr>`).join("");
-    }
+    body.innerHTML = slice.length
+        ? slice.map(t => `
+            <tr>
+                <td>${t.pickup_datetime}</td>
+                <td>${t.pickup_zone  ?? "—"}</td>
+                <td>${t.dropoff_zone ?? "—"}</td>
+                <td>${Number(t.trip_distance).toFixed(2)} mi</td>
+                <td>${Number(t.duration_minutes).toFixed(0)} min</td>
+                <td>${Number(t.speed_mph).toFixed(1)} mph</td>
+                <td>${fmt.fare(t.total_amount)}</td>
+                <td class="${t.is_rush_hour ? "te-rush-yes" : "te-rush-no"}">
+                    ${t.is_rush_hour ? "Yes" : "No"}
+                </td>
+            </tr>`).join("")
+        : `<tr><td colspan="8" class="te-empty">No trips match these filters.</td></tr>`;
 
     const totalPages = Math.max(1, Math.ceil(currentRows.length / PAGE_SIZE));
-    document.getElementById("pgInfo").textContent = `Page ${pageIndex + 1} of ${totalPages} (${currentRows.length} trips)`;
+    document.getElementById("pgInfo").textContent =
+        `Page ${pageIndex + 1} of ${totalPages} · ${fmt.int(currentRows.length)} trips`;
     document.getElementById("pgPrev").disabled = pageIndex === 0;
     document.getElementById("pgNext").disabled = pageIndex >= totalPages - 1;
 }
@@ -104,8 +144,8 @@ function renderTrips() {
 function applyTripFilters() {
     const minFare = parseFloat(document.getElementById("fMinFare").value);
     const maxFare = parseFloat(document.getElementById("fMaxFare").value);
-    const time = document.getElementById("fTime").value;
-    const sortBy = document.getElementById("fSort").value;
+    const time    = document.getElementById("fTime").value;
+    const sortBy  = document.getElementById("fSort").value;
 
     currentRows = allTrips.filter(t => {
         if (!isNaN(minFare) && t.total_amount < minFare) return false;
@@ -114,39 +154,47 @@ function applyTripFilters() {
         return true;
     });
 
-    currentRows.sort((a, b) => {
-        if (sortBy === "pickup_datetime") return a.pickup_datetime < b.pickup_datetime ? 1 : -1;
-        return b[sortBy] - a[sortBy];
-    });
+    currentRows.sort((a, b) =>
+        sortBy === "pickup_datetime"
+            ? (a.pickup_datetime < b.pickup_datetime ? 1 : -1)
+            : (b[sortBy] ?? 0) - (a[sortBy] ?? 0)
+    );
 
     pageIndex = 0;
     renderTrips();
 }
 
 function resetTripFilters() {
-    document.getElementById("fMinFare").value = "";
-    document.getElementById("fMaxFare").value = "";
+    ["fMinFare", "fMaxFare"].forEach(id => (document.getElementById(id).value = ""));
     document.getElementById("fTime").value = "";
     document.getElementById("fSort").value = "pickup_datetime";
     applyTripFilters();
 }
+
 async function initTable() {
-    allTrips = await api.trips({});
+    document.getElementById("teStatus").textContent = "Loading trips…";
+    // API returns {trips, page, per_page, total}; mock returns a plain array
+    const result = await api.trips({ per_page: 100 });
+    allTrips = Array.isArray(result) ? result : (result.trips ?? []);
+    document.getElementById("teStatus").textContent = "";
+
     document.getElementById("fApply").onclick = applyTripFilters;
-    document.getElementById("fReset").onclick = resetTripFilters;
-    document.getElementById("pgPrev").onclick = () => { if (pageIndex > 0) { pageIndex--; renderTrips(); } };
-    document.getElementById("pgNext").onclick = () => { pageIndex++; renderTrips(); };
-    ["fMinFare", "fTime", "fSort"].forEach(id =>{
-        document.getElementById(id).addEventListener("keydown", (e) => {
+    document.getElementById("fReset").onclick  = resetTripFilters;
+    document.getElementById("pgPrev").onclick  = () => { if (pageIndex > 0) { pageIndex--; renderTrips(); } };
+    document.getElementById("pgNext").onclick  = () => { pageIndex++; renderTrips(); };
+
+    ["fMinFare", "fTime", "fSort"].forEach(id =>
+        document.getElementById(id).addEventListener("keydown", e => {
             if (e.key === "Enter") applyTripFilters();
-        });
-    });
+        })
+    );
     applyTripFilters();
 }
 
-(async function start(){
+// ── Boot ─────────────────────────────────────────────────────
+(async function start() {
     await buildFilters();
     await initMap(state.filters);
     await loadAll();
     await initTable();
-}) ();
+})();
