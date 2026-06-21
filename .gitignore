@@ -6,7 +6,13 @@ backend/data/yellow_tripdata*
 
 # Ignore generated backend artifacts
 backend/data_cleaning_log.txt
+backend/data_cleaning_rejected.csv
 backend/mobility.db
 pipeline_output.log
 backend/__pycache__/
+backend/app/__pycache__/
+
+#Ignore the virtual environment
+backend/.venv
+
 *.pyc
