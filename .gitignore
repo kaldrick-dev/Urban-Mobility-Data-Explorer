@@ -12,8 +12,14 @@ pipeline_output.log
 backend/__pycache__/
 backend/app/__pycache__/
 
-#Ignore the virtual environment
+database_dump/mobility.db
+# Ignore the virtual environment
 backend/.venv
+
+# Ignore documents and team task sheets
+*.pdf
+*team*task*sheet*
+*task*sheet*
 
 *.pyc
 
