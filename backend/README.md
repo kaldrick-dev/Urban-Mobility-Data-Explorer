@@ -116,6 +116,32 @@ API is available at `http://127.0.0.1:5000/api`
 
 ---
 
+## API Endpoints (examples)
+
+Base URL: `http://127.0.0.1:5000/api`
+
+- `GET /api/trips` — list trips with optional filters, pagination and sorting.
+  - Query params: `page`, `per_page`, `sort_by`, `sort_dir`, plus filters: `pickup_borough`, `rush_hour`, `date_from`, `date_to`, `min_fare`, `max_fare`, `min_distance`, `max_distance`.
+  - Example: `curl "http://127.0.0.1:5000/api/trips?page=1&per_page=50&pickup_borough=Manhattan"`
+
+- `GET /api/trips/<trip_id>` — fetch a single trip by id.
+  - Example: `curl http://127.0.0.1:5000/api/trips/12345`
+
+- `GET /api/trip/stats` — aggregate statistics for matching trips.
+
+- Analytics endpoints (all accept the same filter set):
+  - `GET /api/analytics/trips-by-hour`
+  - `GET /api/analytics/trips-by-day`
+  - `GET /api/analytics/trips-by-borough`
+  - `GET /api/analytics/fare-distribution`
+  - `GET /api/analytics/distance-distribution`
+  - `GET /api/analytics/speed-by-hour`
+  - `GET /api/analytics/payment-breakdown`
+  - `GET /api/analytics/top-routes?limit=8`
+  - `GET /api/analytics/trips-by-zone`
+
+- `GET /api/zones/boroughs` — list of borough names in the `taxi_zones` table.
+
 ## Data Cleaning Rules
 
 Rows are dropped sequentially (no double-counting):
