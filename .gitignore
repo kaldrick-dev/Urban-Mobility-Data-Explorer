@@ -15,8 +15,5 @@ backend/app/__pycache__/
 #Ignore the virtual environment
 backend/.venv
 
-*.pdf
-*team*task*sheet*
-*task*sheet*
 *.pyc
 
