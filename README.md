@@ -37,6 +37,6 @@ Where to go next
 - To run the full demo: ingest backend data, start the API, then open the frontend in
   a browser and explore the visualizations and REST endpoints.
 
-## Video walkthrough
+Contributing
 
-- Watch a short walkthrough of the project: [YouTube walkthrough](https://youtu.be/v7I0ZpfNniw)
+- Open issues or PRs for bugs, feature requests, or documentation updates.
